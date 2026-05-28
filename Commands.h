@@ -3,14 +3,22 @@
 #define SMASH_COMMAND_H_
 
 #include <vector>
+#include <string>
+
+using namespace std;
 
 #define COMMAND_MAX_LENGTH (200)
 #define COMMAND_MAX_ARGS (20)
 
+class SmallShell; // forward declaration
+
 class Command {
     // TODO: Add your data members
+    const char* m_cmd_line;
+protected:
+    SmallShell* m_shell;
 public:
-    Command(const char *cmd_line);
+    Command(const char *cmd_line, SmallShell* shell);
 
     virtual ~Command();
 
@@ -23,7 +31,7 @@ public:
 
 class BuiltInCommand : public Command {
 public:
-    BuiltInCommand(const char *cmd_line);
+    BuiltInCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~BuiltInCommand() {
     }
@@ -31,7 +39,7 @@ public:
 
 class ExternalCommand : public Command {
 public:
-    ExternalCommand(const char *cmd_line);
+    ExternalCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~ExternalCommand() {
     }
@@ -43,7 +51,7 @@ public:
 class RedirectionCommand : public Command {
     // TODO: Add your data members
 public:
-    explicit RedirectionCommand(const char *cmd_line);
+    explicit RedirectionCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~RedirectionCommand() {
     }
@@ -54,7 +62,7 @@ public:
 class PipeCommand : public Command {
     // TODO: Add your data members
 public:
-    PipeCommand(const char *cmd_line);
+    PipeCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~PipeCommand() {
     }
@@ -64,7 +72,7 @@ public:
 
 class DiskUsageCommand : public Command {
 public:
-    DiskUsageCommand(const char *cmd_line);
+    DiskUsageCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~DiskUsageCommand() {
     }
@@ -74,7 +82,7 @@ public:
 
 class WhoAmICommand : public Command {
 public:
-    WhoAmICommand(const char *cmd_line);
+    WhoAmICommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~WhoAmICommand() {
     }
@@ -85,7 +93,7 @@ public:
 class USBInfoCommand : public Command {
     // TODO: Add your data members **BONUS: 10 Points**
 public:
-    USBInfoCommand(const char *cmd_line);
+    USBInfoCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~USBInfoCommand() {
     }
@@ -93,9 +101,23 @@ public:
     void execute() override;
 };
 
-class ChangeDirCommand : public BuiltInCommand {
+//Built-in function no. 1
+class ChangePromptCommand : public BuiltInCommand {
     // TODO: Add your data members public:
-    ChangeDirCommand(const char *cmd_line, char **plastPwd);
+    char* m_new_prompt;
+public:
+    ChangePromptCommand(const char *cmd_line, SmallShell* shell);
+
+    virtual ~ChangePromptCommand() {
+    }
+
+    void execute() override;
+};
+
+class ChangeDirCommand : public BuiltInCommand {
+    // TODO: Add your data members
+public:
+    ChangeDirCommand(const char *cmd_line, char **plastPwd, SmallShell* shell);
 
     virtual ~ChangeDirCommand() {
     }
@@ -103,9 +125,10 @@ class ChangeDirCommand : public BuiltInCommand {
     void execute() override;
 };
 
+
 class GetCurrDirCommand : public BuiltInCommand {
 public:
-    GetCurrDirCommand(const char *cmd_line);
+    GetCurrDirCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~GetCurrDirCommand() {
     }
@@ -115,7 +138,7 @@ public:
 
 class ShowPidCommand : public BuiltInCommand {
 public:
-    ShowPidCommand(const char *cmd_line);
+    ShowPidCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~ShowPidCommand() {
     }
@@ -127,7 +150,7 @@ class JobsList;
 
 class QuitCommand : public BuiltInCommand {
     // TODO: Add your data members public:
-    QuitCommand(const char *cmd_line, JobsList *jobs);
+    QuitCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
 
     virtual ~QuitCommand() {
     }
@@ -169,7 +192,7 @@ public:
 class JobsCommand : public BuiltInCommand {
     // TODO: Add your data members
 public:
-    JobsCommand(const char *cmd_line, JobsList *jobs);
+    JobsCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
 
     virtual ~JobsCommand() {
     }
@@ -180,7 +203,7 @@ public:
 class KillCommand : public BuiltInCommand {
     // TODO: Add your data members
 public:
-    KillCommand(const char *cmd_line, JobsList *jobs);
+    KillCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
 
     virtual ~KillCommand() {
     }
@@ -191,7 +214,7 @@ public:
 class ForegroundCommand : public BuiltInCommand {
     // TODO: Add your data members
 public:
-    ForegroundCommand(const char *cmd_line, JobsList *jobs);
+    ForegroundCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
 
     virtual ~ForegroundCommand() {
     }
@@ -201,7 +224,7 @@ public:
 
 class AliasCommand : public BuiltInCommand {
 public:
-    AliasCommand(const char *cmd_line);
+    AliasCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~AliasCommand() {
     }
@@ -211,7 +234,7 @@ public:
 
 class UnAliasCommand : public BuiltInCommand {
 public:
-    UnAliasCommand(const char *cmd_line);
+    UnAliasCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~UnAliasCommand() {
     }
@@ -221,7 +244,7 @@ public:
 
 class UnSetEnvCommand : public BuiltInCommand {
 public:
-    UnSetEnvCommand(const char *cmd_line);
+    UnSetEnvCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~UnSetEnvCommand() {
     }
@@ -231,7 +254,7 @@ public:
 
 class SysInfoCommand : public BuiltInCommand {
 public:
-    SysInfoCommand(const char *cmd_line);
+    SysInfoCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~SysInfoCommand() {
     }
@@ -242,6 +265,7 @@ public:
 class SmallShell {
 private:
     // TODO: Add your data members
+    string m_prompt;
     SmallShell();
 
 public:
@@ -260,7 +284,12 @@ public:
 
     void executeCommand(const char *cmd_line);
 
+    void promptChanger(const char* new_prompt);
+
+    string getPrompt() const;
+
     // TODO: add extra methods as needed
 };
+
 
 #endif //SMASH_COMMAND_H_

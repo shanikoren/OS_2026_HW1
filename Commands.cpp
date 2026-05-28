@@ -9,7 +9,7 @@
 
 using namespace std;
 
-const std::string WHITESPACE = " \n\r\t\f\v";
+const string WHITESPACE = " \n\r\t\f\v";
 
 #if 0
 #define FUNC_ENTRY()  \
@@ -22,25 +22,27 @@ const std::string WHITESPACE = " \n\r\t\f\v";
 #define FUNC_EXIT()
 #endif
 
-string _ltrim(const std::string &s) {
+//vvvvvvvvvvvvvvvvvvvv Function that the segel gave as, don't touch it vvvvvvvvvv/
+
+string _ltrim(const string &s) {
     size_t start = s.find_first_not_of(WHITESPACE);
     return (start == std::string::npos) ? "" : s.substr(start);
 }
 
-string _rtrim(const std::string &s) {
+string _rtrim(const string &s) {
     size_t end = s.find_last_not_of(WHITESPACE);
     return (end == std::string::npos) ? "" : s.substr(0, end + 1);
 }
 
-string _trim(const std::string &s) {
+string _trim(const string &s) {
     return _rtrim(_ltrim(s));
 }
 
 int _parseCommandLine(const char *cmd_line, char **args) {
     FUNC_ENTRY()
     int i = 0;
-    std::istringstream iss(_trim(string(cmd_line)).c_str());
-    for (std::string s; iss >> s;) {
+    istringstream iss(_trim(string(cmd_line)).c_str());
+    for (string s; iss >> s;) {
         args[i] = (char *) malloc(s.length() + 1);
         memset(args[i], 0, s.length() + 1);
         strcpy(args[i], s.c_str());
@@ -73,11 +75,171 @@ void _removeBackgroundSign(char *cmd_line) {
     cmd_line[str.find_last_not_of(WHITESPACE, idx) + 1] = 0;
 }
 
+//^^^^^^^^^^^^^^^^^^^ Function that the segel gave as, don't touch it^^^^^^^^^^^/
+
+
 // TODO: Add your implementation for classes in Commands.h 
 
-SmallShell::SmallShell() {
-    // TODO: add your implementation
+
+
+
+/**********************************************************************************/
+//COMMAND CLASS
+Command::Command(const char *cmd_line, SmallShell* shell) : m_cmd_line(cmd_line), m_shell(shell) {}
+
+/**********************************************************************************/
+//BUILT-IN COMMAND CLASSES
+BuiltInCommand::BuiltInCommand(const char *cmd_line, SmallShell* shell) : Command(cmd_line, shell) {}
+
+
+//BUILT-IN COMMAND NO. 1 ----------------------------------------------------------/
+ChangePromptCommand::ChangePromptCommand(const char *cmd_line, SmallShell* shell) : BuiltInCommand(cmd_line, shell) {
+    char* args[20];  
+    int num_args = _parseCommandLine(cmd_line, args);  
+    if (num_args >= 2) {
+        this->m_new_prompt = strdup(args[1]);
+    } else {
+        this->m_new_prompt = nullptr;
+    }
+
+    for (int j = 0; j < num_args; ++j) {
+        free(args[j]);
+    }
 }
+
+ChangePromptCommand::~ChangePromptCommand() {
+    if (this->m_new_prompt != nullptr) {
+        free(this->m_new_prompt);
+    }
+}
+
+void ChangePromptCommand::execute() {
+    m_shell->promptChanger(m_new_prompt ? m_new_prompt : "smash");
+}
+
+//BUILT-IN COMMAND NO. 2 ----------------------------------------------------------/
+
+ShowPidCommand::ShowPidCommand(const char *cmd_line, SmallShell* shell)
+ : BuiltInCommand(cmd_line, shell) {}
+
+ShowPidCommand::~ShowPidCommand() {}
+
+void ShowPidCommand::execute(){
+    //TODO
+}
+
+
+//BUILT-IN COMMAND NO. 3 ----------------------------------------------------------/
+GetCurrDirCommand::GetCurrDirCommand(const char *cmd_line, SmallShell* shell)
+    : BuiltInCommand(cmd_line, shell) {}
+
+GetCurrDirCommand::~GetCurrDirCommand() {}
+
+void GetCurrDirCommand::execute() {
+    //TODO
+}
+
+//BUILT-IN COMMAND NO. 4 ----------------------------------------------------------/
+ChangeDirCommand::ChangeDirCommand(const char *cmd_line, char **plastPwd, SmallShell* shell)
+    : BuiltInCommand(cmd_line, shell) {}
+
+ChangeDirCommand::~ChangeDirCommand() {}
+
+void ChangeDirCommand::execute() {
+    //TODO
+}
+
+//BUILT-IN COMMAND NO. 5 ----------------------------------------------------------/
+JobsCommand::JobsCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell)
+    : BuiltInCommand(cmd_line, shell) {}
+
+JobsCommand::~JobsCommand() {}
+
+void JobsCommand::execute() {
+    //TODO
+}
+
+//BUILT-IN COMMAND NO. 6 ----------------------------------------------------------/
+ForegroundCommand::ForegroundCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell)
+    : BuiltInCommand(cmd_line, shell) {}
+
+ForegroundCommand::~ForegroundCommand() {}
+
+void ForegroundCommand::execute() {
+    //TODO
+}
+
+//BUILT-IN COMMAND NO. 7 ----------------------------------------------------------/
+QuitCommand::QuitCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell)
+    : BuiltInCommand(cmd_line, shell) {}
+
+QuitCommand::~QuitCommand() {}
+
+void QuitCommand::execute() {
+    //TODO
+}
+
+//BUILT-IN COMMAND NO. 8 ----------------------------------------------------------/
+KillCommand::KillCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell)
+    : BuiltInCommand(cmd_line, shell) {}
+
+KillCommand::~KillCommand() {}
+
+void KillCommand::execute() {
+    //TODO
+}
+
+//BUILT-IN COMMAND NO. 9 ----------------------------------------------------------/
+AliasCommand::AliasCommand(const char *cmd_line, SmallShell* shell)
+    : BuiltInCommand(cmd_line, shell) {}
+
+AliasCommand::~AliasCommand() {}
+
+void AliasCommand::execute() {
+    //TODO
+}
+
+//BUILT-IN COMMAND NO. 10 ----------------------------------------------------------/
+UnAliasCommand::UnAliasCommand(const char *cmd_line, SmallShell* shell)
+    : BuiltInCommand(cmd_line, shell) {}
+
+UnAliasCommand::~UnAliasCommand() {}
+
+void UnAliasCommand::execute() {
+    //TODO
+}
+
+//BUILT-IN COMMAND NO. 11 ----------------------------------------------------------/
+UnSetEnvCommand::UnSetEnvCommand(const char *cmd_line, SmallShell* shell)
+    : BuiltInCommand(cmd_line, shell) {}
+
+UnSetEnvCommand::~UnSetEnvCommand() {}
+
+void UnSetEnvCommand::execute() {
+    //TODO
+}
+
+//BUILT-IN COMMAND NO. 12 ----------------------------------------------------------/
+SysInfoCommand::SysInfoCommand(const char *cmd_line, SmallShell* shell)
+    : BuiltInCommand(cmd_line, shell) {}
+
+SysInfoCommand::~SysInfoCommand() {}
+
+void SysInfoCommand::execute() {
+    //TODO
+}
+
+
+
+
+
+
+
+
+
+/**********************************************************************************/
+//small shell parts
+SmallShell::SmallShell() : m_prompt("smash") {}
 
 SmallShell::~SmallShell() {
     // TODO: add your implementation
@@ -88,29 +250,47 @@ SmallShell::~SmallShell() {
 */
 Command *SmallShell::CreateCommand(const char *cmd_line) {
     // For example:
-    /*
+    
     string cmd_s = _trim(string(cmd_line));
     string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
 
-    if (firstWord.compare("pwd") == 0) {
-      return new GetCurrDirCommand(cmd_line);
+    if (firstWord.compare("chprompt") == 0) {
+      return new ChangePromptCommand(cmd_line, this);
     }
     else if (firstWord.compare("showpid") == 0) {
-      return new ShowPidCommand(cmd_line);
+      return new ShowPidCommand(cmd_line, this);
     }
-    else if ...
-    .....
+    else if (firstWord.compare("pwd") == 0) {
+      return new GetCurrDirCommand(cmd_line, this);
+    }
+    else if () {
+        
+    }
+    else if () {
+        
+    }
+    else if () {
+        
+    }
     else {
-      return new ExternalCommand(cmd_line);
+      return new ExternalCommand(cmd_line, this);
     }
-    */
+    
     return nullptr;
+}
+
+void SmallShell::promptChanger(const char* new_prompt) {
+    m_prompt = new_prompt;
 }
 
 void SmallShell::executeCommand(const char *cmd_line) {
     // TODO: Add your implementation here
     // for example:
-    // Command* cmd = CreateCommand(cmd_line);
-    // cmd->execute();
+    Command* cmd = CreateCommand(cmd_line);
+    cmd->execute();
     // Please note that you must fork smash process for some commands (e.g., external commands....)
+}
+
+string SmallShell::getPrompt() const {
+    return m_prompt + "> ";
 }
