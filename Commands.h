@@ -27,6 +27,9 @@ public:
     //virtual void prepare();
     //virtual void cleanup();
     // TODO: Add your extra methods if needed
+    const char* getCmdLine() const {
+        return m_cmd_line;
+    }
 };
 
 class BuiltInCommand : public Command {
@@ -159,16 +162,32 @@ class QuitCommand : public BuiltInCommand {
 class JobsList {
 public:
     class JobEntry {
-        // TODO: Add your data members
-    };
+    public:
+        int id;
+        pid_t pid;
+        bool is_stopped = false;
+        string cmd;
+        time_t start_time;
 
+        JobEntry(int id, int pid, const char* cmd, bool is_stopped) : id(id), pid(pid),
+        cmd(cmd), is_stopped(is_stopped) {
+            this->start_time = time(nullptr);
+        }
+        ~JobEntry() = default;
+
+    };
+    vector <JobEntry*> job_entries;
     // TODO: Add your data members
 public:
     JobsList();
 
-    ~JobsList();
+    ~JobsList() {
+        for (JobEntry* job : job_entries) {
+            delete job;
+        }
+    }
 
-    void addJob(Command *cmd, bool isStopped = false);
+    void addJob(Command *cmd, pid_t pid, bool isStopped = false);
 
     void printJobsList();
 
@@ -188,6 +207,7 @@ public:
 };
 
 class JobsCommand : public BuiltInCommand {
+    JobsList* jobs_list;
     // TODO: Add your data members
 public:
     JobsCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
@@ -265,6 +285,7 @@ private:
     // TODO: Add your data members
     string m_prompt = "smash";
     char* m_lastPwd = nullptr; //here we save last path
+    JobsList jobs_list;
     SmallShell();
 
 public:

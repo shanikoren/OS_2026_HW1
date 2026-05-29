@@ -184,12 +184,12 @@ void ChangeDirCommand::execute() {
 
 //BUILT-IN COMMAND NO. 5 ----------------------------------------------------------/
 JobsCommand::JobsCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell)
-    : BuiltInCommand(cmd_line, shell) {}
-
-JobsCommand::~JobsCommand() {}
+    : BuiltInCommand(cmd_line, shell) {
+    jobs_list = jobs;
+}
 
 void JobsCommand::execute() {
-    //TODO
+    jobs_list->printJobsList();
 }
 
 //BUILT-IN COMMAND NO. 6 ----------------------------------------------------------/
@@ -299,8 +299,8 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     else if (firstWord.compare("cd") == 0) {
         return new ChangeDirCommand(cmd_line, this);
     }
-    else if () {
-        
+    else if (firstWord.compare("jobs") == 0) {
+        return new JobsCommand(cmd_line, &(this->jobs_list), this);
     }
     else if () {
         
@@ -329,4 +329,102 @@ void SmallShell::executeCommand(const char *cmd_line) {
 
 string SmallShell::getPrompt() const {
     return m_prompt + "> ";
+}
+
+void JobsList::addJob(Command *cmd, pid_t pid, bool isStopped) {
+    removeFinishedJobs();
+    int new_id = 1;
+    if(!job_entries.empty()) {
+        new_id = job_entries.back()->id + 1;
+    }
+    JobEntry* new_job_entry = new JobEntry(new_id, pid, cmd->getCmdLine(), isStopped);
+    job_entries.push_back(new_job_entry);
+}
+
+void JobsList::printJobsList() {
+    removeFinishedJobs();
+    for (JobEntry* job : job_entries) {
+        cout<< "[" << job->id << "]" << job->cmd << endl;
+    }
+}
+
+void JobsList::killAllJobs() {
+    for (JobEntry* job : job_entries) {
+        if(kill(job->pid, SIGKILL) != -1) {
+            perror("smash error: kill failed");
+        }
+        delete job;
+    }
+    job_entries.clear();
+}
+
+void JobsList::removeFinishedJobs() {
+    if (job_entries.empty()) {
+        return;
+    }
+    for (auto it = job_entries.begin(); it != job_entries.end(); ) {
+        JobEntry* job = *it;
+        int res = waitpid(job->pid, nullptr, WNOHANG);
+        if (res > 0) {
+            delete job;
+            it = job_entries.erase(it);
+        } else if (res == -1) {
+            if (errno == ECHILD) {
+                delete job;
+                it = job_entries.erase(it);
+            } else {
+                perror("smash error: waitpid failed");
+                ++it;
+            }
+        } else {
+            ++it;
+        }
+    }
+}
+
+
+
+JobsList::JobEntry *JobsList::getJobById(int jobId) {
+    for (JobEntry* job : job_entries) {
+        if (job->id == jobId) {
+            return job;
+        }
+    }
+    return nullptr;
+}
+
+void JobsList::removeJobById(int jobId) {
+    for (auto it = job_entries.begin(); it != job_entries.end(); ) {
+        JobEntry* job = *it;
+        if (job->id == jobId) {
+            delete job;
+            job_entries.erase(it);
+            return;
+        }
+        ++it;
+    }
+}
+
+JobsList::JobEntry *JobsList::getLastJob(int *lastJobId) {
+    if (job_entries.empty()) {
+        return nullptr;
+    }
+    JobEntry* last = job_entries.back();
+    if (lastJobId) {
+        *lastJobId = last->id;
+    }
+    return last;
+}
+
+JobsList::JobEntry *JobsList::getLastStoppedJob(int *jobId) {
+    JobEntry* last_stopped = nullptr;
+    for (JobEntry* job : job_entries) {
+        if (job->is_stopped) {
+                last_stopped = job;
+            }
+        }
+    if (last_stopped) {
+        *jobId = last_stopped->id;
+    }
+    return last_stopped;
 }
