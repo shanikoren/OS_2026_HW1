@@ -101,7 +101,6 @@ ChangePromptCommand::ChangePromptCommand(const char *cmd_line, SmallShell* shell
     } else {
         this->m_new_prompt = nullptr;
     }
-
     for (int j = 0; j < num_args; ++j) {
         free(args[j]);
     }
@@ -114,7 +113,7 @@ ChangePromptCommand::~ChangePromptCommand() {
 }
 
 void ChangePromptCommand::execute() {
-    m_shell->promptChanger(m_new_prompt ? m_new_prompt : "smash");
+    m_shell->promptChanger((string)m_new_prompt ? (string)m_new_prompt : "smash");
 }
 
 //BUILT-IN COMMAND NO. 2 ----------------------------------------------------------/
@@ -122,10 +121,8 @@ void ChangePromptCommand::execute() {
 ShowPidCommand::ShowPidCommand(const char *cmd_line, SmallShell* shell)
  : BuiltInCommand(cmd_line, shell) {}
 
-ShowPidCommand::~ShowPidCommand() {}
-
 void ShowPidCommand::execute(){
-    //TODO
+    std::cout << "smash pid is " << getpid() << std::endl;
 }
 
 
@@ -133,20 +130,56 @@ void ShowPidCommand::execute(){
 GetCurrDirCommand::GetCurrDirCommand(const char *cmd_line, SmallShell* shell)
     : BuiltInCommand(cmd_line, shell) {}
 
-GetCurrDirCommand::~GetCurrDirCommand() {}
-
 void GetCurrDirCommand::execute() {
-    //TODO
+    char* cwd = getcwd(nullptr, 0);
+    if (cwd != nullptr) {
+        std::cout << cwd << std::endl;
+        free(cwd);
+    } else {
+        perror("smash error: getcwd failed");
+    }
 }
 
 //BUILT-IN COMMAND NO. 4 ----------------------------------------------------------/
-ChangeDirCommand::ChangeDirCommand(const char *cmd_line, char **plastPwd, SmallShell* shell)
-    : BuiltInCommand(cmd_line, shell) {}
+ChangeDirCommand::ChangeDirCommand(const char *cmd_line, SmallShell* shell)
+    : BuiltInCommand(cmd_line, shell) {
+}
 
 ChangeDirCommand::~ChangeDirCommand() {}
 
 void ChangeDirCommand::execute() {
-    //TODO
+    char* args[20];
+    int num_args = _parseCommandLine(m_cmd_line, args);
+    if (num_args > 2) {
+        cerr << "smash error: cd: too many arguments" << endl;
+    } else if(num_args == 2 && strcmp(args[1], "-") == 0) {
+        if(m_shell->getLastPwd() == nullptr) {
+            cerr << "smash error: cd: OLDPWD not set" << endl;
+        } else {
+            char* current_path = getcwd(nullptr, 0);
+            if (current_path == nullptr) {
+                perror("smash error: getcwd failed");
+            } else if(chdir(m_shell->getLastPwd()) == -1) {
+                perror("smash error: chdir failed");
+                free(current_path);
+            } else {
+                m_shell->setLastPwd(current_path);
+            }
+        }
+    } else if(num_args == 2){
+        char* current_path = getcwd(nullptr, 0);
+        if (current_path == nullptr) {
+            perror("smash error: getcwd failed");
+        } else if(chdir(args[1]) == -1) {
+            perror("smash error: chdir failed");
+            free(current_path);
+        } else {
+            m_shell->setLastPwd(current_path);
+        }
+    }
+    for (int j = 0; j < num_args; j++) {
+        free(args[j]);
+    }
 }
 
 //BUILT-IN COMMAND NO. 5 ----------------------------------------------------------/
@@ -263,6 +296,9 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     else if (firstWord.compare("pwd") == 0) {
       return new GetCurrDirCommand(cmd_line, this);
     }
+    else if (firstWord.compare("cd") == 0) {
+        return new ChangeDirCommand(cmd_line, this);
+    }
     else if () {
         
     }
@@ -279,7 +315,7 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     return nullptr;
 }
 
-void SmallShell::promptChanger(const char* new_prompt) {
+void SmallShell::promptChanger(const string& new_prompt) {
     m_prompt = new_prompt;
 }
 

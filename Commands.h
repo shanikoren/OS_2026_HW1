@@ -14,8 +14,8 @@ class SmallShell; // forward declaration
 
 class Command {
     // TODO: Add your data members
+    protected:
     const char* m_cmd_line;
-protected:
     SmallShell* m_shell;
 public:
     Command(const char *cmd_line, SmallShell* shell);
@@ -108,8 +108,7 @@ class ChangePromptCommand : public BuiltInCommand {
 public:
     ChangePromptCommand(const char *cmd_line, SmallShell* shell);
 
-    virtual ~ChangePromptCommand() {
-    }
+    virtual ~ChangePromptCommand();
 
     void execute() override;
 };
@@ -117,10 +116,9 @@ public:
 class ChangeDirCommand : public BuiltInCommand {
     // TODO: Add your data members
 public:
-    ChangeDirCommand(const char *cmd_line, char **plastPwd, SmallShell* shell);
+    ChangeDirCommand(const char *cmd_line, SmallShell* shell);
 
-    virtual ~ChangeDirCommand() {
-    }
+    virtual ~ChangeDirCommand();
 
     void execute() override;
 };
@@ -265,7 +263,8 @@ public:
 class SmallShell {
 private:
     // TODO: Add your data members
-    string m_prompt;
+    string m_prompt = "smash";
+    char* m_lastPwd = nullptr; //here we save last path
     SmallShell();
 
 public:
@@ -284,9 +283,20 @@ public:
 
     void executeCommand(const char *cmd_line);
 
-    void promptChanger(const char* new_prompt);
+    void promptChanger(const string& new_prompt);
 
     string getPrompt() const;
+
+    char* getLastPwd() const{
+        return m_lastPwd;
+    }
+
+    void setLastPwd(char* newLastPwd) {
+        if (m_lastPwd != nullptr) {
+            free(m_lastPwd);
+        }
+        m_lastPwd = newLastPwd;
+    }
 
     // TODO: add extra methods as needed
 };
