@@ -194,29 +194,84 @@ void JobsCommand::execute() {
 
 //BUILT-IN COMMAND NO. 6 ----------------------------------------------------------/
 ForegroundCommand::ForegroundCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell)
-    : BuiltInCommand(cmd_line, shell) {}
-
-ForegroundCommand::~ForegroundCommand() {}
+    : BuiltInCommand(cmd_line, shell) {
+    jobs_list = jobs;
+}
 
 void ForegroundCommand::execute() {
-    //TODO
+    char* args[20];
+    int num_args = _parseCommandLine(m_cmd_line, args);
+    int job_id = -1;
+    string cmd;
+    pid_t pid = -1;
+    JobsList::JobEntry* target_job = nullptr;
+    if (num_args > 2) {
+        cerr << "smash error: fg: invalid arguments" << endl;
+    } else if (num_args == 1) {
+        if (jobs_list->job_entries.empty()) {
+            cerr << "smash error: fg: jobs list is empty" << endl;
+        } else {
+            target_job = jobs_list->getLastJob(&job_id);
+        }
+    } else {
+        try {
+            size_t pos;
+            job_id = std::stoi(args[1], &pos);
+            if (pos != strlen(args[1])) {
+                cerr << "smash error: fg: invalid arguments" << endl
+                job_id = -1;
+            }
+        } catch (const std::invalid_argument&) {
+            cerr << "smash error: fg: invalid arguments" << endl;
+            job_id = -1;
+        }
+        if (job_id != -1) {
+            target_job = jobs_list->getJobById(job_id);
+            if (target_job == nullptr) {
+                cerr << "smash error: fg: job-id " << job_id << " does not exist" << endl;
+            }
+        }
+    }
+    if(target_job != nullptr) {
+        pid_t pid = target_job->pid;
+        string cmd = target_job->cmd;
+        cout << cmd << " " << pid << endl;
+        jobs_list->removeJobById(job_id);
+        m_shell->setFgPid(pid);
+        if(waitpid(pid, nullptr, 0) == -1){
+            if (errno != ECHILD) {
+                perror("smash error: waitpid failed");
+            }
+        }
+        m_shell->setFgPid(0);
+    }
+    for (int j = 0; j < num_args; j++) {
+        free(args[j]);
+    }
 }
 
 //BUILT-IN COMMAND NO. 7 ----------------------------------------------------------/
 QuitCommand::QuitCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell)
-    : BuiltInCommand(cmd_line, shell) {}
-
-QuitCommand::~QuitCommand() {}
+    : BuiltInCommand(cmd_line, shell) {
+    job_list = jobs;
+}
 
 void QuitCommand::execute() {
-    //TODO
+    char* args[20];
+    int num_args = _parseCommandLine(m_cmd_line, args);
+    if (num_args > 1 && strcmp(args[1], "kill") == 0) {
+        job_list->killAllJobs();
+    }
+    for (int j = 0; j < num_args; j++) {
+        free(args[j]);
+    }
+    exit(0);
 }
 
 //BUILT-IN COMMAND NO. 8 ----------------------------------------------------------/
 KillCommand::KillCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell)
-    : BuiltInCommand(cmd_line, shell) {}
-
-KillCommand::~KillCommand() {}
+    : BuiltInCommand(cmd_line, shell) {
+}
 
 void KillCommand::execute() {
     //TODO
@@ -302,11 +357,11 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     else if (firstWord.compare("jobs") == 0) {
         return new JobsCommand(cmd_line, &(this->jobs_list), this);
     }
-    else if () {
-        
+    else if (firstWord.compare("fg") == 0) {
+        return new ForegroundCommand(cmd_line, &(this->jobs_list), this);
     }
-    else if () {
-        
+    else if (firstWord.compare("quit") == 0) {
+        return new QuitCommand(cmd_line, &(this->jobs_list), this);
     }
     else {
       return new ExternalCommand(cmd_line, this);
@@ -344,12 +399,15 @@ void JobsList::addJob(Command *cmd, pid_t pid, bool isStopped) {
 void JobsList::printJobsList() {
     removeFinishedJobs();
     for (JobEntry* job : job_entries) {
-        cout<< "[" << job->id << "]" << job->cmd << endl;
+        cout<< "[" << job->id << "] " << job->cmd << endl;
     }
 }
 
 void JobsList::killAllJobs() {
+    removeFinishedJobs();
+    cout << "smash: sending SIGKILL signal to " << job_entries.size() << " jobs:" << endl;
     for (JobEntry* job : job_entries) {
+        cout << job->pid << ": " << job->cmd << endl;
         if(kill(job->pid, SIGKILL) != -1) {
             perror("smash error: kill failed");
         }

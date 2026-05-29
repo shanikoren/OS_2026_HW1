@@ -150,7 +150,8 @@ public:
 class JobsList;
 
 class QuitCommand : public BuiltInCommand {
-    // TODO: Add your data members public:
+    JobsList* job_list;
+public:
     QuitCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
 
     virtual ~QuitCommand() {
@@ -230,7 +231,7 @@ public:
 };
 
 class ForegroundCommand : public BuiltInCommand {
-    // TODO: Add your data members
+    JobsList* jobs_list;
 public:
     ForegroundCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
 
@@ -286,6 +287,7 @@ private:
     string m_prompt = "smash";
     char* m_lastPwd = nullptr; //here we save last path
     JobsList jobs_list;
+    pid_t fg_pid = 0;
     SmallShell();
 
 public:
@@ -307,6 +309,14 @@ public:
     void promptChanger(const string& new_prompt);
 
     string getPrompt() const;
+
+    pid_t getFgPid() const {
+        return fg_pid;
+    }
+
+    void setFgPid(pid_t pid) {
+        fg_pid = pid;
+    }
 
     char* getLastPwd() const{
         return m_lastPwd;
