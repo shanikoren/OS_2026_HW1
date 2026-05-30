@@ -221,7 +221,7 @@ void ForegroundCommand::execute() {
                 cerr << "smash error: fg: invalid arguments" << endl
                 job_id = -1;
             }
-        } catch (const std::invalid_argument&) {
+        } catch (...) {
             cerr << "smash error: fg: invalid arguments" << endl;
             job_id = -1;
         }
@@ -271,10 +271,61 @@ void QuitCommand::execute() {
 //BUILT-IN COMMAND NO. 8 ----------------------------------------------------------/
 KillCommand::KillCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell)
     : BuiltInCommand(cmd_line, shell) {
+    job_list = jobs;
 }
 
 void KillCommand::execute() {
-    //TODO
+    char* args[20];
+    int num_args = _parseCommandLine(m_cmd_line, args);
+    int signum = 0;
+    int job_id = -1;
+    bool is_invalid_args = false;
+    if (num_args != 3) {
+        is_invalid_args = true;
+    } else {
+        string sig_str(args[1]);
+        string job_id_str(args[2]);
+        if (sig_str.length() < 2 || sig_str[0] != '-') {
+            is_invalid_args = true;
+        } else {
+            try {
+                size_t pos1, pos2;
+                sig_str = sig_str.substr(1);
+                signum = stoi(sig_str, &pos1);
+                job_id = stoi(job_id_str, &pos2);
+                if (pos1 != sig_str.length() || pos2 != job_id_str.length()) {
+                    is_invalid_args = true;
+                    job_id = -1;
+                    signum = 0;
+                }
+            } catch (...) {
+                is_invalid_args = true;
+                job_id = -1;
+                signum = 0;
+            }
+        }
+    }
+    if(is_invalid_args) {
+        cerr << "smash error: kill: invalid arguments" << endl;
+        for (int j = 0; j < num_args; j++) {
+            free(args[j]);
+        }
+        return;
+    }
+    JobsList::JobEntry* job = job_list->getJobById(job_id);
+    if(job == nullptr) {
+        cerr << "smash error: kill: job-id " << job_id << " does not exist" << endl;
+    } else {
+        int res = kill(job->pid, signum);
+        if (res == -1) {
+            perror("smash error: kill failed");
+        } else {
+            cout << "signal number " << signum << " was sent to pid " << job->pid << endl;
+        }
+    }
+    for (int j = 0; j < num_args; j++) {
+        free(args[j]);
+    }
 }
 
 //BUILT-IN COMMAND NO. 9 ----------------------------------------------------------/
@@ -363,6 +414,9 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     else if (firstWord.compare("quit") == 0) {
         return new QuitCommand(cmd_line, &(this->jobs_list), this);
     }
+    else if (firstWord.compare("kill") == 0) {
+        return new KillCommand(cmd_line, &(this->jobs_list), this);
+    }
     else {
       return new ExternalCommand(cmd_line, this);
     }
@@ -443,6 +497,7 @@ void JobsList::removeFinishedJobs() {
 
 
 JobsList::JobEntry *JobsList::getJobById(int jobId) {
+    removeFinishedJobs();
     for (JobEntry* job : job_entries) {
         if (job->id == jobId) {
             return job;
