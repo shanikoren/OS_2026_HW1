@@ -41,8 +41,9 @@ public:
 };
 
 class ExternalCommand : public Command {
+    JobsList* job_list;
 public:
-    ExternalCommand(const char *cmd_line, SmallShell* shell);
+    ExternalCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
 
     virtual ~ExternalCommand() {
     }
@@ -52,9 +53,9 @@ public:
 
 
 class RedirectionCommand : public Command {
-    // TODO: Add your data members
+    JobsList* job_list;
 public:
-    explicit RedirectionCommand(const char *cmd_line, SmallShell* shell);
+    explicit RedirectionCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
 
     virtual ~RedirectionCommand() {
     }
@@ -63,9 +64,9 @@ public:
 };
 
 class PipeCommand : public Command {
-    // TODO: Add your data members
+    JobsList* job_list;
 public:
-    PipeCommand(const char *cmd_line, SmallShell* shell);
+    PipeCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
 
     virtual ~PipeCommand() {
     }
@@ -74,8 +75,9 @@ public:
 };
 
 class DiskUsageCommand : public Command {
+    JobsList* job_list;
 public:
-    DiskUsageCommand(const char *cmd_line, SmallShell* shell);
+    DiskUsageCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
 
     virtual ~DiskUsageCommand() {
     }
@@ -84,8 +86,9 @@ public:
 };
 
 class WhoAmICommand : public Command {
+    JobsList* job_list;
 public:
-    WhoAmICommand(const char *cmd_line, SmallShell* shell);
+    WhoAmICommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
 
     virtual ~WhoAmICommand() {
     }
@@ -94,9 +97,9 @@ public:
 };
 
 class USBInfoCommand : public Command {
-    // TODO: Add your data members **BONUS: 10 Points**
+    JobsList* job_list;
 public:
-    USBInfoCommand(const char *cmd_line, SmallShell* shell);
+    USBInfoCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
 
     virtual ~USBInfoCommand() {
     }

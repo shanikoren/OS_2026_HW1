@@ -122,7 +122,7 @@ ShowPidCommand::ShowPidCommand(const char *cmd_line, SmallShell* shell)
  : BuiltInCommand(cmd_line, shell) {}
 
 void ShowPidCommand::execute(){
-    std::cout << "smash pid is " << getpid() << std::endl;
+    cout << "smash pid is " << getpid() << endl;
 }
 
 
@@ -133,7 +133,7 @@ GetCurrDirCommand::GetCurrDirCommand(const char *cmd_line, SmallShell* shell)
 void GetCurrDirCommand::execute() {
     char* cwd = getcwd(nullptr, 0);
     if (cwd != nullptr) {
-        std::cout << cwd << std::endl;
+        cout << cwd << endl;
         free(cwd);
     } else {
         perror("smash error: getcwd failed");
@@ -152,21 +152,21 @@ void ChangeDirCommand::execute() {
     int num_args = _parseCommandLine(m_cmd_line, args);
     if (num_args > 2) {
         cerr << "smash error: cd: too many arguments" << endl;
-    } else if(num_args == 2 && strcmp(args[1], "-") == 0) {
-        if(m_shell->getLastPwd() == nullptr) {
+    } else if ((num_args == 2) && (strcmp(args[1], "-") == 0)) {
+        if (m_shell->getLastPwd() == nullptr) {
             cerr << "smash error: cd: OLDPWD not set" << endl;
         } else {
             char* current_path = getcwd(nullptr, 0);
             if (current_path == nullptr) {
                 perror("smash error: getcwd failed");
-            } else if(chdir(m_shell->getLastPwd()) == -1) {
+            } else if (chdir(m_shell->getLastPwd()) == -1) {
                 perror("smash error: chdir failed");
                 free(current_path);
             } else {
                 m_shell->setLastPwd(current_path);
             }
         }
-    } else if(num_args == 2){
+    } else if(num_args == 2) {
         char* current_path = getcwd(nullptr, 0);
         if (current_path == nullptr) {
             perror("smash error: getcwd failed");
@@ -176,7 +176,7 @@ void ChangeDirCommand::execute() {
         } else {
             m_shell->setLastPwd(current_path);
         }
-    }
+    } 
     for (int j = 0; j < num_args; j++) {
         free(args[j]);
     }
