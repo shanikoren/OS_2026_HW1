@@ -538,7 +538,7 @@ void JobsList::killAllJobs() {
     cout << "smash: sending SIGKILL signal to " << job_entries.size() << " jobs:" << endl;
     for (JobEntry* job : job_entries) {
         cout << job->pid << ": " << job->cmd << endl;
-        if(kill(job->pid, SIGKILL) != -1) {
+        if(kill(job->pid, SIGKILL) == -1) {
             perror("smash error: kill failed");
         }
         delete job;

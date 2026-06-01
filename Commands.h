@@ -275,7 +275,7 @@ public:
 
 class SmallShell {
 public:
-    static const vector<string> reserved_commands;
+    static const vector<string> reserved_commands; //TODO: Check all commands here.
 
 private:
     // TODO: Add your data members
