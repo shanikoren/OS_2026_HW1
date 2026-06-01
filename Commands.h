@@ -41,9 +41,8 @@ public:
 };
 
 class ExternalCommand : public Command {
-    JobsList* job_list;
 public:
-    ExternalCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
+    ExternalCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~ExternalCommand() {
     }
@@ -53,9 +52,8 @@ public:
 
 
 class RedirectionCommand : public Command {
-    JobsList* job_list;
 public:
-    explicit RedirectionCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
+    explicit RedirectionCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~RedirectionCommand() {
     }
@@ -64,9 +62,8 @@ public:
 };
 
 class PipeCommand : public Command {
-    JobsList* job_list;
 public:
-    PipeCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
+    PipeCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~PipeCommand() {
     }
@@ -75,9 +72,8 @@ public:
 };
 
 class DiskUsageCommand : public Command {
-    JobsList* job_list;
 public:
-    DiskUsageCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
+    DiskUsageCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~DiskUsageCommand() {
     }
@@ -86,9 +82,8 @@ public:
 };
 
 class WhoAmICommand : public Command {
-    JobsList* job_list;
 public:
-    WhoAmICommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
+    WhoAmICommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~WhoAmICommand() {
     }
@@ -97,9 +92,8 @@ public:
 };
 
 class USBInfoCommand : public Command {
-    JobsList* job_list;
 public:
-    USBInfoCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
+    USBInfoCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~USBInfoCommand() {
     }
@@ -153,9 +147,8 @@ public:
 class JobsList;
 
 class QuitCommand : public BuiltInCommand {
-    JobsList* job_list;
 public:
-    QuitCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
+    QuitCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~QuitCommand() {
     }
@@ -211,10 +204,8 @@ public:
 };
 
 class JobsCommand : public BuiltInCommand {
-    JobsList* jobs_list;
-    // TODO: Add your data members
 public:
-    JobsCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
+    JobsCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~JobsCommand() {
     }
@@ -223,9 +214,8 @@ public:
 };
 
 class KillCommand : public BuiltInCommand {
-    JobsList* job_list;
 public:
-    KillCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
+    KillCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~KillCommand() {
     }
@@ -234,9 +224,8 @@ public:
 };
 
 class ForegroundCommand : public BuiltInCommand {
-    JobsList* jobs_list;
 public:
-    ForegroundCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell);
+    ForegroundCommand(const char *cmd_line, SmallShell* shell);
 
     virtual ~ForegroundCommand() {
     }
@@ -285,12 +274,16 @@ public:
 };
 
 class SmallShell {
+public:
+    static const vector<string> reserved_commands;
+
 private:
     // TODO: Add your data members
     string m_prompt = "smash";
     char* m_lastPwd = nullptr; //here we save last path
     JobsList jobs_list;
     pid_t fg_pid = 0;
+    vector<pair<string, string>> m_aliases; // first=display string, second=trimmed command
     SmallShell();
 
 public:
@@ -331,6 +324,22 @@ public:
         }
         m_lastPwd = newLastPwd;
     }
+
+    JobsList* getJobsList() {
+        return &jobs_list;
+    }
+
+    const vector<pair<string, string>>& getAliases() const {
+        return m_aliases;
+    }
+
+    void addAlias(const string& display, const string& trimmed_cmd) {
+        m_aliases.push_back({display, trimmed_cmd});
+    }
+
+    void removeAlias(const string& name);
+
+    string getAliasCommand(const string& name) const;
 
     // TODO: add extra methods as needed
 };

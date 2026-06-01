@@ -5,11 +5,17 @@
 #include <sstream>
 #include <sys/wait.h>
 #include <iomanip>
+#include <regex>
 #include "Commands.h"
 
 using namespace std;
 
 const string WHITESPACE = " \n\r\t\f\v";
+
+const vector<string> SmallShell::reserved_commands = {
+    "alias", "unalias", "cd", "pwd", "jobs", "fg",
+    "quit", "kill", "chprompt", "showpid", "unsetenv", "sysinfo"
+};
 
 #if 0
 #define FUNC_ENTRY()  \
@@ -183,20 +189,16 @@ void ChangeDirCommand::execute() {
 }
 
 //BUILT-IN COMMAND NO. 5 ----------------------------------------------------------/
-JobsCommand::JobsCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell)
-    : BuiltInCommand(cmd_line, shell) {
-    jobs_list = jobs;
-}
+JobsCommand::JobsCommand(const char *cmd_line, SmallShell* shell)
+    : BuiltInCommand(cmd_line, shell) {}
 
 void JobsCommand::execute() {
-    jobs_list->printJobsList();
+    m_shell->getJobsList()->printJobsList();
 }
 
 //BUILT-IN COMMAND NO. 6 ----------------------------------------------------------/
-ForegroundCommand::ForegroundCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell)
-    : BuiltInCommand(cmd_line, shell) {
-    jobs_list = jobs;
-}
+ForegroundCommand::ForegroundCommand(const char *cmd_line, SmallShell* shell)
+    : BuiltInCommand(cmd_line, shell) {}
 
 void ForegroundCommand::execute() {
     char* args[20];
@@ -205,6 +207,7 @@ void ForegroundCommand::execute() {
     string cmd;
     pid_t pid = -1;
     JobsList::JobEntry* target_job = nullptr;
+    JobsList* jobs_list = m_shell->getJobsList();
     if (num_args > 2) {
         cerr << "smash error: fg: invalid arguments" << endl;
     } else if (num_args == 1) {
@@ -218,7 +221,7 @@ void ForegroundCommand::execute() {
             size_t pos;
             job_id = std::stoi(args[1], &pos);
             if (pos != strlen(args[1])) {
-                cerr << "smash error: fg: invalid arguments" << endl
+                cerr << "smash error: fg: invalid arguments" << endl;
                 job_id = -1;
             }
         } catch (...) {
@@ -251,16 +254,14 @@ void ForegroundCommand::execute() {
 }
 
 //BUILT-IN COMMAND NO. 7 ----------------------------------------------------------/
-QuitCommand::QuitCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell)
-    : BuiltInCommand(cmd_line, shell) {
-    job_list = jobs;
-}
+QuitCommand::QuitCommand(const char *cmd_line, SmallShell* shell)
+    : BuiltInCommand(cmd_line, shell) {}
 
 void QuitCommand::execute() {
     char* args[20];
     int num_args = _parseCommandLine(m_cmd_line, args);
     if (num_args > 1 && strcmp(args[1], "kill") == 0) {
-        job_list->killAllJobs();
+        m_shell->getJobsList()->killAllJobs();
     }
     for (int j = 0; j < num_args; j++) {
         free(args[j]);
@@ -269,10 +270,8 @@ void QuitCommand::execute() {
 }
 
 //BUILT-IN COMMAND NO. 8 ----------------------------------------------------------/
-KillCommand::KillCommand(const char *cmd_line, JobsList *jobs, SmallShell* shell)
-    : BuiltInCommand(cmd_line, shell) {
-    job_list = jobs;
-}
+KillCommand::KillCommand(const char *cmd_line, SmallShell* shell)
+    : BuiltInCommand(cmd_line, shell) {}
 
 void KillCommand::execute() {
     char* args[20];
@@ -312,7 +311,7 @@ void KillCommand::execute() {
         }
         return;
     }
-    JobsList::JobEntry* job = job_list->getJobById(job_id);
+    JobsList::JobEntry* job = m_shell->getJobsList()->getJobById(job_id);
     if(job == nullptr) {
         cerr << "smash error: kill: job-id " << job_id << " does not exist" << endl;
     } else {
@@ -334,9 +333,57 @@ AliasCommand::AliasCommand(const char *cmd_line, SmallShell* shell)
 
 AliasCommand::~AliasCommand() {}
 
-void AliasCommand::execute() {
-    //TODO
+void SmallShell::removeAlias(const string& name) {
+    for (auto it = m_aliases.begin(); it != m_aliases.end(); ++it) {
+        string alias_name = _trim(it->first.substr(0, it->first.find('=')));
+        if (alias_name == name) {
+            m_aliases.erase(it);
+            return;
+        }
+    }
 }
+
+string SmallShell::getAliasCommand(const string& name) const {
+    for (const auto& alias : m_aliases) {
+        string alias_name = _trim(alias.first.substr(0, alias.first.find('=')));
+        if (alias_name == name) {
+            return alias.second;
+        }
+    }
+    return "";
+}
+
+void AliasCommand::execute() {
+    string cmd_s = _trim(string(m_cmd_line));
+    string after_alias = _trim(cmd_s.substr(5)); // skip "alias"
+
+    if (after_alias.empty()) {
+        for (const auto& alias : m_shell->getAliases()) {
+            cout << alias.first << endl;
+        }
+    } else {
+        static const regex alias_regex("^alias [a-zA-Z0-9_]+='[^']*'$");
+        if (!regex_match(cmd_s, alias_regex)) {
+            cerr << "smash error: alias: invalid alias format" << endl;
+            return;
+        }
+        size_t eq_pos = after_alias.find('=');
+        string name = after_alias.substr(0, eq_pos);
+        string value = after_alias.substr(eq_pos + 1); // includes surrounding quotes
+        string trimmed_cmd = value.substr(1, value.size() - 2); // strip quotes
+
+        bool is_reserved = false;
+        for (const string& r : SmallShell::reserved_commands) {
+            if (name == r) { is_reserved = true; break; }
+        }
+        if (is_reserved || !m_shell->getAliasCommand(name).empty()) {
+            cerr << "smash error: alias: " << name << " already exists or is a reserved command" << endl;
+        } else {
+            m_shell->addAlias(after_alias, trimmed_cmd);
+        }
+    }
+}
+
 
 //BUILT-IN COMMAND NO. 10 ----------------------------------------------------------/
 UnAliasCommand::UnAliasCommand(const char *cmd_line, SmallShell* shell)
@@ -345,7 +392,24 @@ UnAliasCommand::UnAliasCommand(const char *cmd_line, SmallShell* shell)
 UnAliasCommand::~UnAliasCommand() {}
 
 void UnAliasCommand::execute() {
-    //TODO
+    char* args[20];
+    int num_args = _parseCommandLine(m_cmd_line, args);
+    if (num_args < 2) {
+        cerr << "smash error: unalias: not enough arguments" << endl;
+    } else {
+        for (int i = 1; i < num_args; i++) {
+            string name(args[i]);
+            if (m_shell->getAliasCommand(name).empty()) {
+                cerr << "smash error: unalias: " << name << " alias does not exist" << endl;
+                break;
+            } else {
+                m_shell->removeAlias(name);
+            }
+        }
+    }
+    for (int j = 0; j < num_args; j++) {
+        free(args[j]);
+    }
 }
 
 //BUILT-IN COMMAND NO. 11 ----------------------------------------------------------/
@@ -391,7 +455,7 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     // For example:
     
     string cmd_s = _trim(string(cmd_line));
-    string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
+    string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \t\n|><&"));
 
     if (firstWord.compare("chprompt") == 0) {
       return new ChangePromptCommand(cmd_line, this);
@@ -406,21 +470,33 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
         return new ChangeDirCommand(cmd_line, this);
     }
     else if (firstWord.compare("jobs") == 0) {
-        return new JobsCommand(cmd_line, &(this->jobs_list), this);
+        return new JobsCommand(cmd_line, this);
     }
     else if (firstWord.compare("fg") == 0) {
-        return new ForegroundCommand(cmd_line, &(this->jobs_list), this);
+        return new ForegroundCommand(cmd_line, this);
     }
     else if (firstWord.compare("quit") == 0) {
-        return new QuitCommand(cmd_line, &(this->jobs_list), this);
+        return new QuitCommand(cmd_line, this);
     }
     else if (firstWord.compare("kill") == 0) {
-        return new KillCommand(cmd_line, &(this->jobs_list), this);
+        return new KillCommand(cmd_line, this);
+    }
+    else if (firstWord.compare("alias") == 0) {
+        return new AliasCommand(cmd_line, this);
+    }
+    else if (firstWord.compare("unalias") == 0) {
+        return new UnAliasCommand(cmd_line, this);
     }
     else {
-      return new ExternalCommand(cmd_line, this);
+        string alias_cmd = getAliasCommand(firstWord);
+        if (!alias_cmd.empty()) {
+            string rest = cmd_s.substr(firstWord.length());
+            string expanded = alias_cmd + rest;
+            return CreateCommand(expanded.c_str());
+        }
+        return new ExternalCommand(cmd_line, this);
     }
-    
+
     return nullptr;
 }
 
