@@ -422,6 +422,73 @@ void UnSetEnvCommand::execute() {
     //TODO
 }
 
+bool UnSetEnvCommand::envVarExists(const char* var) {
+
+    int maxPathSize = 32; //6 for proc + 5 for PID + 8 for environ + 13 to be sure.
+    char path[maxPathSize];
+    pid_t pid = getpid();
+    snprintf(path, sizeof(path), "/proc/%d/environ", pid);
+
+    int fd = open(path, O_RDONLY);
+    if (fd < 0 ) { 
+        perror("smash error: open failed");
+        return false;
+    }
+
+    const int everyBufferSize = 4096; 
+    char buffer[everyBufferSize];
+    string currentEntry = "";
+    ssize_t bytesRead;
+
+    while (true) {
+        bytesRead = read(fd, buffer, everyBufferSize);
+        if (bytesRead < 0) {
+            perror("smash error: read failed");
+            return false;
+        }
+        if (bytesRead == 0) {
+            break;
+        }
+
+        for(int i = 0; i < bytesRead; i++) {
+            if (buffer[i] != '\0') {
+                currentEntry += buffer[i];
+            }
+            else if (currentEntryToVarCompare(currentEntry, var)) {
+                close(fd);
+                return true;
+            } 
+            else { 
+                currentEntry.clear();
+            }
+        }
+    }
+
+    //  הערה לאריאל: תמחוק אחרי שתקרא - זה נועד על מנת מקרה שבו הקובץ נגמר בדיוק במשתנה שאנחנו צריכים ואז אין \0 אחריו 
+    if (currentEntryToVarCompare(currentEntry, var)) {
+        close(fd);
+        return true;
+    }
+
+    close(fd); 
+    return false;
+}
+}
+
+bool UnSetEnvCommand::currentEntryToVarCompare(string toCompare ,const char* var) { 
+    if (toCompare.empty()) { return false; }
+ 
+    size_t pos = currentEntry.find('=');                   
+    if (pos != string::npos) {
+        string varName = toCompare.substr(0, pos);
+        if (varName == var) {
+            return true;
+        } 
+    }
+    return false;
+
+}
+
 //BUILT-IN COMMAND NO. 12 ----------------------------------------------------------/
 SysInfoCommand::SysInfoCommand(const char *cmd_line, SmallShell* shell)
     : BuiltInCommand(cmd_line, shell) {}
