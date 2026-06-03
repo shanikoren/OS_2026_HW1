@@ -260,6 +260,12 @@ public:
     virtual ~UnSetEnvCommand() {
     }
 
+    bool currentEntryToVarCompare(string toCompare ,const char* var);
+
+    void removeFromEnviron(const char* var);
+
+    bool envVarExists(const char* var);
+
     void execute() override;
 };
 

@@ -6,7 +6,9 @@
 #include <sys/wait.h>
 #include <iomanip>
 #include <regex>
+#include <fcntl.h>
 #include "Commands.h"
+extern char **__environ;
 
 using namespace std;
 
@@ -91,7 +93,16 @@ void _removeBackgroundSign(char *cmd_line) {
 
 /**********************************************************************************/
 //COMMAND CLASS
-Command::Command(const char *cmd_line, SmallShell* shell) : m_cmd_line(cmd_line), m_shell(shell) {}
+Command::Command(const char* cmd_line, SmallShell* shell) : m_shell(shell) {
+    int len = strlen(cmd_line);
+    char* copied_str = new char[len + 1];
+    strcpy(copied_str, cmd_line);
+    this->m_cmd_line = copied_str;
+}
+
+Command::~Command() {
+    delete[] m_cmd_line;
+}
 
 /**********************************************************************************/
 //BUILT-IN COMMAND CLASSES
@@ -331,8 +342,6 @@ void KillCommand::execute() {
 AliasCommand::AliasCommand(const char *cmd_line, SmallShell* shell)
     : BuiltInCommand(cmd_line, shell) {}
 
-AliasCommand::~AliasCommand() {}
-
 void SmallShell::removeAlias(const string& name) {
     for (auto it = m_aliases.begin(); it != m_aliases.end(); ++it) {
         string alias_name = _trim(it->first.substr(0, it->first.find('=')));
@@ -389,8 +398,6 @@ void AliasCommand::execute() {
 UnAliasCommand::UnAliasCommand(const char *cmd_line, SmallShell* shell)
     : BuiltInCommand(cmd_line, shell) {}
 
-UnAliasCommand::~UnAliasCommand() {}
-
 void UnAliasCommand::execute() {
     char* args[20];
     int num_args = _parseCommandLine(m_cmd_line, args);
@@ -416,11 +423,38 @@ void UnAliasCommand::execute() {
 UnSetEnvCommand::UnSetEnvCommand(const char *cmd_line, SmallShell* shell)
     : BuiltInCommand(cmd_line, shell) {}
 
-UnSetEnvCommand::~UnSetEnvCommand() {}
 
 void UnSetEnvCommand::execute() {
-    //TODO
+    char* args[20];
+    int num_args = _parseCommandLine(m_cmd_line, args);
+    if (num_args < 2) {
+        cerr << "smash error: unsetenv: not enough arguments" << endl;
+        for (int j = 0; j < num_args; j++) free(args[j]);
+        return;
+    }
+    for (int i = 1; i < num_args; i++) {
+        if(!envVarExists(args[i])) {
+            cerr << "smash error: unsetenv: "<< args[i] <<" does not exist" << endl;
+            for (int j = 0; j < num_args; j++) free(args[j]);
+            return;
+        }
+        removeFromEnviron(args[i]);
+    }
+    for (int j = 0; j < num_args; j++) free(args[j]);
 }
+
+void UnSetEnvCommand::removeFromEnviron(const char *var) {
+    string prefix = string(var) + "=";
+    for (int j = 0; __environ[j] != nullptr; ++j) {
+        if (strncmp(__environ[j], prefix.c_str(), prefix.size()) == 0) {
+            for (int k = j; __environ[k] != nullptr; ++k) {
+                __environ[k] = __environ[k + 1];
+            }
+            return;
+        }
+    }
+}
+
 
 bool UnSetEnvCommand::envVarExists(const char* var) {
 
@@ -444,6 +478,7 @@ bool UnSetEnvCommand::envVarExists(const char* var) {
         bytesRead = read(fd, buffer, everyBufferSize);
         if (bytesRead < 0) {
             perror("smash error: read failed");
+            close(fd);
             return false;
         }
         if (bytesRead == 0) {
@@ -463,22 +498,18 @@ bool UnSetEnvCommand::envVarExists(const char* var) {
             }
         }
     }
-
-    //  הערה לאריאל: תמחוק אחרי שתקרא - זה נועד על מנת מקרה שבו הקובץ נגמר בדיוק במשתנה שאנחנו צריכים ואז אין \0 אחריו 
     if (currentEntryToVarCompare(currentEntry, var)) {
         close(fd);
         return true;
     }
-
     close(fd); 
     return false;
-}
 }
 
 bool UnSetEnvCommand::currentEntryToVarCompare(string toCompare ,const char* var) { 
     if (toCompare.empty()) { return false; }
  
-    size_t pos = currentEntry.find('=');                   
+    size_t pos = toCompare.find('=');
     if (pos != string::npos) {
         string varName = toCompare.substr(0, pos);
         if (varName == var) {
@@ -486,7 +517,6 @@ bool UnSetEnvCommand::currentEntryToVarCompare(string toCompare ,const char* var
         } 
     }
     return false;
-
 }
 
 //BUILT-IN COMMAND NO. 12 ----------------------------------------------------------/
@@ -519,42 +549,48 @@ SmallShell::~SmallShell() {
 * Creates and returns a pointer to Command class which matches the given command line (cmd_line)
 */
 Command *SmallShell::CreateCommand(const char *cmd_line) {
-    // For example:
     
     string cmd_s = _trim(string(cmd_line));
     string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \t\n|><&"));
+    char clean_cmd[COMMAND_MAX_LENGTH];
+    strcpy(clean_cmd, cmd_line);
+    _removeBackgroundSign(clean_cmd); //handle the case of BuiltInCommand&
 
     if (firstWord.compare("chprompt") == 0) {
-      return new ChangePromptCommand(cmd_line, this);
+      return new ChangePromptCommand(clean_cmd, this);
     }
     else if (firstWord.compare("showpid") == 0) {
-      return new ShowPidCommand(cmd_line, this);
+      return new ShowPidCommand(clean_cmd, this);
     }
     else if (firstWord.compare("pwd") == 0) {
-      return new GetCurrDirCommand(cmd_line, this);
+      return new GetCurrDirCommand(clean_cmd, this);
     }
     else if (firstWord.compare("cd") == 0) {
-        return new ChangeDirCommand(cmd_line, this);
+        return new ChangeDirCommand(clean_cmd, this);
     }
     else if (firstWord.compare("jobs") == 0) {
-        return new JobsCommand(cmd_line, this);
+        return new JobsCommand(clean_cmd, this);
     }
     else if (firstWord.compare("fg") == 0) {
-        return new ForegroundCommand(cmd_line, this);
+        return new ForegroundCommand(clean_cmd, this);
     }
     else if (firstWord.compare("quit") == 0) {
-        return new QuitCommand(cmd_line, this);
+        return new QuitCommand(clean_cmd, this);
     }
     else if (firstWord.compare("kill") == 0) {
-        return new KillCommand(cmd_line, this);
+        return new KillCommand(clean_cmd, this);
     }
     else if (firstWord.compare("alias") == 0) {
-        return new AliasCommand(cmd_line, this);
+        return new AliasCommand(clean_cmd, this);
     }
     else if (firstWord.compare("unalias") == 0) {
-        return new UnAliasCommand(cmd_line, this);
+        return new UnAliasCommand(clean_cmd, this);
     }
-    else {
+    else if (firstWord.compare("unsetenv") == 0) {
+        return new UnSetEnvCommand(clean_cmd, this);
+    } else if (firstWord.compare("sysinfo") == 0) {
+        return new SysInfoCommand(clean_cmd, this);
+    } else {
         string alias_cmd = getAliasCommand(firstWord);
         if (!alias_cmd.empty()) {
             string rest = cmd_s.substr(firstWord.length());
