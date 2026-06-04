@@ -164,12 +164,11 @@ public:
     public:
         int id;
         pid_t pid;
-        bool is_stopped = false;
         string cmd;
         time_t start_time;
 
-        JobEntry(int id, int pid, const char* cmd, bool is_stopped) : id(id), pid(pid),
-        cmd(cmd), is_stopped(is_stopped) {
+        JobEntry(int id, int pid, const char* cmd) : id(id), pid(pid),
+        cmd(cmd) {
             this->start_time = time(nullptr);
         }
         ~JobEntry() = default;
@@ -178,7 +177,7 @@ public:
     vector <JobEntry*> job_entries;
     // TODO: Add your data members
 public:
-    JobsList();
+    JobsList() = default;
 
     ~JobsList() {
         for (JobEntry* job : job_entries) {
@@ -186,7 +185,7 @@ public:
         }
     }
 
-    void addJob(Command *cmd, pid_t pid, bool isStopped = false);
+    void addJob(Command *cmd, pid_t pid);
 
     void printJobsList();
 
@@ -200,7 +199,6 @@ public:
 
     JobEntry *getLastJob(int *lastJobId);
 
-    JobEntry *getLastStoppedJob(int *jobId);
 
     // TODO: Add extra methods or modify exisitng ones as needed
 };

@@ -225,7 +225,6 @@ void ForegroundCommand::execute() {
     int num_args = _parseCommandLine(m_cmd_line, args);
     int job_id = -1;
     string cmd;
-    pid_t pid = -1;
     JobsList::JobEntry* target_job = nullptr;
     JobsList* jobs_list = m_shell->getJobsList();
     if (num_args > 2) {
@@ -634,7 +633,7 @@ void ExternalCommand::execute() {
         }
     } else {
         if (is_background) {
-            m_shell->getJobsList()->addJob(this, pid, false);
+            m_shell->getJobsList()->addJob(this, pid);
         } else {
             m_shell->setFgPid(pid);
             int status;
@@ -802,7 +801,7 @@ void DiskUsageCommand::execute() {
         exit(0);
     } else {
         if (is_background) {
-            m_shell->getJobsList()->addJob(this, pid, false);
+            m_shell->getJobsList()->addJob(this, pid);
         } else {
             m_shell->setFgPid(pid);
             if (waitpid(pid, nullptr, 0) == -1) {
@@ -909,7 +908,7 @@ void WhoAmICommand::execute() {
         exit(0);
     } else {
         if (is_background) {
-            m_shell->getJobsList()->addJob(this, pid, false);
+            m_shell->getJobsList()->addJob(this, pid);
         } else {
             m_shell->setFgPid(pid);
             if (waitpid(pid, nullptr, 0) == -1) {
@@ -938,6 +937,9 @@ SmallShell::~SmallShell() {
 Command *SmallShell::CreateCommand(const char *cmd_line) {
     
     string cmd_s = _trim(string(cmd_line));
+    if (cmd_s.empty()) {
+        return nullptr;
+    }
     string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \t\n|><&"));
     char clean_cmd[COMMAND_MAX_LENGTH];
     strcpy(clean_cmd, cmd_line);
@@ -1017,13 +1019,13 @@ string SmallShell::getPrompt() const {
     return m_prompt + "> ";
 }
 
-void JobsList::addJob(Command *cmd, pid_t pid, bool isStopped) {
+void JobsList::addJob(Command *cmd, pid_t pid) {
     removeFinishedJobs();
     int new_id = 1;
     if(!job_entries.empty()) {
         new_id = job_entries.back()->id + 1;
     }
-    JobEntry* new_job_entry = new JobEntry(new_id, pid, cmd->getCmdLine(), isStopped);
+    JobEntry* new_job_entry = new JobEntry(new_id, pid, cmd->getCmdLine());
     job_entries.push_back(new_job_entry);
 }
 
@@ -1104,17 +1106,4 @@ JobsList::JobEntry *JobsList::getLastJob(int *lastJobId) {
         *lastJobId = last->id;
     }
     return last;
-}
-
-JobsList::JobEntry *JobsList::getLastStoppedJob(int *jobId) {
-    JobEntry* last_stopped = nullptr;
-    for (JobEntry* job : job_entries) {
-        if (job->is_stopped) {
-                last_stopped = job;
-            }
-        }
-    if (last_stopped) {
-        *jobId = last_stopped->id;
-    }
-    return last_stopped;
 }
