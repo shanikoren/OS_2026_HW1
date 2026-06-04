@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <regex>
 #include <fcntl.h>
+#include <sys/utsname.h>
 #include "Commands.h"
 extern char **__environ;
 
@@ -523,13 +524,64 @@ bool UnSetEnvCommand::currentEntryToVarCompare(string toCompare ,const char* var
 SysInfoCommand::SysInfoCommand(const char *cmd_line, SmallShell* shell)
     : BuiltInCommand(cmd_line, shell) {}
 
-SysInfoCommand::~SysInfoCommand() {}
-
 void SysInfoCommand::execute() {
-    //TODO
+    utsname uts = {};
+    if (uname(&uts) != 0) {
+        perror("smash error: uname failed");
+        return;
+    }
+    time_t boot_time_seconds;
+    if (!getBootTime(boot_time_seconds)) {
+        return;
+    }
+    tm *tm_info = localtime(&boot_time_seconds);
+    if (tm_info == nullptr) {
+        return;
+    }
+    char time_buf[30];
+    if (strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", tm_info) == 0) {
+        return;
+    }
+    cout << "System: " << uts.sysname << endl;
+    cout << "Hostname: " << uts.nodename << endl;
+    cout << "Kernel: " << uts.release << endl;
+    cout << "Architecture: " << uts.machine << endl;
+    cout << "Boot Time: " << time_buf << endl;
 }
 
-
+bool SysInfoCommand::getBootTime(time_t& boot_time) {
+    int fd = open("/proc/stat", O_RDONLY);
+    if (fd < 0) {
+        perror("smash error: open failed");
+        return 0;
+    }
+    const int BUFFER_SIZE = 4096;
+    char buffer[BUFFER_SIZE];
+    ssize_t bytesRead;
+    string content = "";
+    while ((bytesRead = read(fd, buffer, BUFFER_SIZE - 1)) > 0) {
+        buffer[bytesRead] = '\0';
+        content += buffer;
+    }
+    close(fd);
+    if (bytesRead < 0) {
+        perror("smash error: read failed");
+        return false;
+    }
+    size_t btime_pos = content.find("btime ");
+    if (btime_pos != string::npos) {
+        size_t start = btime_pos + 6; // מדלגים על המילה "btime" והרווח
+        size_t end = content.find('\n', start);
+        string btime_str = content.substr(start, end - start);
+        try {
+            boot_time = stoul(btime_str);
+            return true;
+        } catch (...) {
+            return false;
+        }
+    }
+    return false;
+}
 
 
 

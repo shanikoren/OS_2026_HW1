@@ -277,6 +277,8 @@ public:
     }
 
     void execute() override;
+
+    bool getBootTime(time_t& boot_time);
 };
 
 class SmallShell {
