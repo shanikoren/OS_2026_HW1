@@ -598,7 +598,7 @@ ExternalCommand::ExternalCommand(const char *cmd_line, SmallShell *shell) : Comm
 
 void ExternalCommand::execute() {
     bool is_background = _isBackgroundComamnd(m_cmd_line);
-    char clean_cmd[COMMAND_MAX_LENGTH];
+    char clean_cmd[COMMAND_MAX_LENGTH + 1];
     strcpy(clean_cmd, m_cmd_line);
     if (is_background) {
         _removeBackgroundSign(clean_cmd);
@@ -766,7 +766,7 @@ DiskUsageCommand::DiskUsageCommand(const char *cmd_line, SmallShell *shell) : Co
 
 void DiskUsageCommand::execute() {
     bool is_background = _isBackgroundComamnd(m_cmd_line);
-    char clean_cmd[COMMAND_MAX_LENGTH];
+    char clean_cmd[COMMAND_MAX_LENGTH + 1];
     strcpy(clean_cmd, m_cmd_line);
     if (is_background) {
         _removeBackgroundSign(clean_cmd);
@@ -827,7 +827,7 @@ WhoAmICommand::WhoAmICommand(const char *cmd_line, SmallShell *shell) :  Command
 
 void WhoAmICommand::execute() {
     bool is_background = _isBackgroundComamnd(m_cmd_line);
-    char clean_cmd[COMMAND_MAX_LENGTH];
+    char clean_cmd[COMMAND_MAX_LENGTH + 1];
     strcpy(clean_cmd, m_cmd_line);
     if (is_background) {
         _removeBackgroundSign(clean_cmd);
@@ -941,7 +941,7 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
         return nullptr;
     }
     string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \t\n|><&"));
-    char clean_cmd[COMMAND_MAX_LENGTH];
+    char clean_cmd[COMMAND_MAX_LENGTH + 1];
     strcpy(clean_cmd, cmd_line);
     _removeBackgroundSign(clean_cmd); //handle the case of BuiltInCommand&
     string clean_cmd_s(clean_cmd);
@@ -1009,6 +1009,7 @@ void SmallShell::promptChanger(const string& new_prompt) {
 void SmallShell::executeCommand(const char *cmd_line) {
     // TODO: Add your implementation here
     // for example:
+    jobs_list.removeFinishedJobs();
     Command* cmd = CreateCommand(cmd_line);
     if (cmd == nullptr) {
         return;
