@@ -950,7 +950,7 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     } else if (clean_cmd_s.find("|") != string::npos) {
         return new PipeCommand(clean_cmd, this);
     } else if (firstWord.compare("du") == 0) {
-        return new PipeCommand(cmd_line, this);
+        return new DiskUsageCommand(cmd_line, this);
     }
     else if (firstWord.compare("whoami") == 0) {
         return new WhoAmICommand(cmd_line, this);
@@ -1010,6 +1010,9 @@ void SmallShell::executeCommand(const char *cmd_line) {
     // TODO: Add your implementation here
     // for example:
     Command* cmd = CreateCommand(cmd_line);
+    if (cmd == nullptr) {
+        return;
+    }
     cmd->execute();
     delete cmd;
     // Please note that you must fork smash process for some commands (e.g., external commands....)
