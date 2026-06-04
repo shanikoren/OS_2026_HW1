@@ -75,6 +75,8 @@ class DiskUsageCommand : public Command {
 public:
     DiskUsageCommand(const char *cmd_line, SmallShell* shell);
 
+    size_t calculateDiskUsage(const string& target_path);
+
     virtual ~DiskUsageCommand() {
     }
 
@@ -91,15 +93,15 @@ public:
     void execute() override;
 };
 
-class USBInfoCommand : public Command {
-public:
-    USBInfoCommand(const char *cmd_line, SmallShell* shell);
-
-    virtual ~USBInfoCommand() {
-    }
-
-    void execute() override;
-};
+// class USBInfoCommand : public Command {
+// public:
+//     USBInfoCommand(const char *cmd_line, SmallShell* shell);
+//
+//     virtual ~USBInfoCommand() {
+//     }
+//
+//     void execute() override;
+// };
 
 //Built-in function no. 1
 class ChangePromptCommand : public BuiltInCommand {

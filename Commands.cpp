@@ -8,6 +8,7 @@
 #include <regex>
 #include <fcntl.h>
 #include <sys/utsname.h>
+#include <ftw.h>
 #include "Commands.h"
 extern char **__environ;
 
@@ -84,9 +85,16 @@ void _removeBackgroundSign(char *cmd_line) {
     cmd_line[str.find_last_not_of(WHITESPACE, idx) + 1] = 0;
 }
 
+
+
 //^^^^^^^^^^^^^^^^^^^ Function that the segel gave as, don't touch it^^^^^^^^^^^/
 
+static size_t g_total_blocks = 0;
 
+static int sum_blocks_callback(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf) {
+    g_total_blocks += sb->st_blocks;
+    return 0;
+}
 // TODO: Add your implementation for classes in Commands.h 
 
 
@@ -131,7 +139,7 @@ ChangePromptCommand::~ChangePromptCommand() {
 }
 
 void ChangePromptCommand::execute() {
-    m_shell->promptChanger((string)m_new_prompt ? (string)m_new_prompt : "smash");
+    m_shell->promptChanger(m_new_prompt != nullptr ? string(m_new_prompt) : "smash");
 }
 
 //BUILT-IN COMMAND NO. 2 ----------------------------------------------------------/
@@ -553,7 +561,7 @@ bool SysInfoCommand::getBootTime(time_t& boot_time) {
     int fd = open("/proc/stat", O_RDONLY);
     if (fd < 0) {
         perror("smash error: open failed");
-        return 0;
+        return false;
     }
     const int BUFFER_SIZE = 4096;
     char buffer[BUFFER_SIZE];
@@ -584,8 +592,333 @@ bool SysInfoCommand::getBootTime(time_t& boot_time) {
 }
 
 
+/**********************************************************************************/
+//EXTERNAL COMMAND --------------------------------------------------------------
 
+ExternalCommand::ExternalCommand(const char *cmd_line, SmallShell *shell) : Command(cmd_line, shell) {}
 
+void ExternalCommand::execute() {
+    bool is_background = _isBackgroundComamnd(m_cmd_line);
+    char clean_cmd[COMMAND_MAX_LENGTH];
+    strcpy(clean_cmd, m_cmd_line);
+    if (is_background) {
+        _removeBackgroundSign(clean_cmd);
+    }
+    string cmd_str(clean_cmd);
+    bool is_complex = (cmd_str.find_first_of("*?") != string::npos);
+    pid_t pid = fork();
+    if (pid < 0) {
+        perror("smash error: fork failed");
+        return;
+    }
+    if (pid == 0) {
+        if (setpgrp() == -1) {
+            perror("smash error: setpgrp failed");
+            exit(1);
+        }
+        if (is_complex) {
+            if (execl("/bin/bash", "bash", "-c", clean_cmd, nullptr) == -1) {
+                perror("smash error: execl failed");
+                exit(1);
+            }
+        } else {
+            char* args[COMMAND_MAX_ARGS + 1];
+            int num_args = _parseCommandLine(clean_cmd, args);
+            if (execvp(args[0], args) == -1) {
+                perror("smash error: execvp failed");
+                for (int i = 0; i < num_args; i++) {
+                    free(args[i]);
+                }
+                exit(1);
+            }
+        }
+    } else {
+        if (is_background) {
+            m_shell->getJobsList()->addJob(this, pid, false);
+        } else {
+            m_shell->setFgPid(pid);
+            int status;
+            if (waitpid(pid, &status, 0) == -1) {
+                perror("smash error: waitpid failed");
+            }
+            m_shell->setFgPid(0);
+        }
+    }
+}
+
+/**********************************************************************************/
+//SPECIAL COMMAND NO. 1 -----------------------------------------------------------
+
+RedirectionCommand::RedirectionCommand(const char *cmd_line, SmallShell* shell) : Command(cmd_line, shell) {}
+
+void RedirectionCommand::execute() {
+    string cmd_str = string(m_cmd_line);
+    bool is_append = false;
+    size_t pos = cmd_str.find(">>");
+    if (pos != string::npos) {
+        is_append = true;
+    } else {
+        pos = cmd_str.find(">");
+    }
+    if (pos == string::npos) {
+        return;
+    }
+    string inner_cmd = _trim(cmd_str.substr(0, pos));
+    string file_name = _trim(cmd_str.substr(pos + (is_append ? 2 : 1)));
+    int stdout_backup = dup(1);
+    if (stdout_backup == -1) {
+        perror("smash error: dup failed");
+        return;
+    }
+    int flags = O_WRONLY | O_CREAT | (is_append ? O_APPEND : O_TRUNC);
+    int fd = open(file_name.c_str(), flags, 0666);
+    if (fd == -1) {
+        perror("smash error: open failed");
+        close(stdout_backup);
+        return;
+    }
+    if (dup2(fd, 1) == -1) {
+        perror("smash error: dup2 failed");
+        close(fd);
+        close(stdout_backup);
+        return;
+    }
+    close(fd);
+    m_shell->executeCommand(inner_cmd.c_str());
+    if (dup2(stdout_backup, 1) == -1) {
+        perror("smash error: dup2 failed");
+    }
+    close(stdout_backup);
+}
+
+//SPECIAL COMMAND NO. 2 -----------------------------------------------------------
+
+PipeCommand::PipeCommand(const char *cmd_line, SmallShell* shell) : Command(cmd_line, shell) {}
+
+void PipeCommand::execute() {
+    string cmd_str = string(m_cmd_line);
+    bool is_stderr = false;
+    size_t pos = cmd_str.find("|&");
+    if (pos != string::npos) {
+        is_stderr = true;
+    } else {
+        pos = cmd_str.find("|");
+    }
+    if (pos == string::npos) {
+        return;
+    }
+    string cmd1 = _trim(cmd_str.substr(0, pos));
+    string cmd2 = _trim(cmd_str.substr(pos + (is_stderr ? 2 : 1)));
+    int fd[2];
+    if (pipe(fd) == -1) {
+        perror("smash error: pipe failed");
+        return;
+    }
+    pid_t pid1 = fork();
+    if (pid1 < 0) {
+        perror("smash error: fork failed");
+        close(fd[0]);
+        close(fd[1]);
+        return;
+    }
+    if (pid1 == 0) {
+        setpgrp();
+        close(fd[0]);
+        int target_fd = is_stderr ? 2 : 1;
+        if (dup2(fd[1], target_fd) == -1) {
+            perror("smash error: dup2 failed");
+            exit(1);
+        }
+        close(fd[1]);
+        m_shell->executeCommand(cmd1.c_str());
+        cout.flush();
+        exit(0);
+    }
+    pid_t pid2 = fork();
+    if (pid2 < 0) {
+        perror("smash error: fork failed");
+        close(fd[0]);
+        close(fd[1]);
+        return;
+    }
+    if (pid2 == 0) {
+        setpgrp();
+        close(fd[1]);
+        if (dup2(fd[0], 0) == -1) {
+            perror("smash error: dup2 failed");
+            exit(1);
+        }
+        close(fd[0]);
+        m_shell->executeCommand(cmd2.c_str());
+        exit(0);
+    }
+    close(fd[0]);
+    close(fd[1]);
+    if (waitpid(pid1, nullptr, 0) == -1) {
+        perror("smash error: waitpid failed");
+    }
+    if (waitpid(pid2, nullptr, 0) == -1) {
+        perror("smash error: waitpid failed");
+    }
+}
+//SPECIAL COMMAND NO. 3 -----------------------------------------------------------
+
+DiskUsageCommand::DiskUsageCommand(const char *cmd_line, SmallShell *shell) : Command(cmd_line, shell) {}
+
+void DiskUsageCommand::execute() {
+    bool is_background = _isBackgroundComamnd(m_cmd_line);
+    char clean_cmd[COMMAND_MAX_LENGTH];
+    strcpy(clean_cmd, m_cmd_line);
+    if (is_background) {
+        _removeBackgroundSign(clean_cmd);
+    }
+    char* args[COMMAND_MAX_ARGS + 1];
+    int num_args = _parseCommandLine(clean_cmd, args);
+    if (num_args > 2) {
+        cerr << "smash error: du: too many arguments" << endl;
+        for (int i = 0; i < num_args; i++) free(args[i]);
+        return;
+    }
+    string target_path = ".";
+    if (num_args == 2) {
+        target_path = args[1];
+    }
+    for (int i = 0; i < num_args; i++) {
+        free(args[i]);
+    }
+    pid_t pid = fork();
+    if (pid < 0) {
+        perror("smash error: fork failed");
+        return;
+    }
+    if (pid == 0) {
+        if (setpgrp() == -1) {
+            perror("smash error: setpgrp failed");
+            exit(1);
+        }
+        size_t total_blocks = calculateDiskUsage(target_path);
+        size_t total_kb = (total_blocks + 1) / 2;
+        cout << "Total disk usage: " << total_kb << " KB" << endl;
+        exit(0);
+    } else {
+        if (is_background) {
+            m_shell->getJobsList()->addJob(this, pid, false);
+        } else {
+            m_shell->setFgPid(pid);
+            if (waitpid(pid, nullptr, 0) == -1) {
+                perror("smash error: waitpid failed");
+            }
+            m_shell->setFgPid(0);
+        }
+    }
+}
+
+size_t DiskUsageCommand::calculateDiskUsage(const string& path) {
+    g_total_blocks = 0;
+    if (nftw(path.c_str(), sum_blocks_callback, 20, FTW_PHYS) == -1) {
+        perror("smash error: nftw failed");
+        return 0;
+    }
+    return g_total_blocks;
+}
+
+//SPECIAL COMMAND NO. 4 -----------------------------------------------------------
+
+WhoAmICommand::WhoAmICommand(const char *cmd_line, SmallShell *shell) :  Command(cmd_line, shell) {}
+
+void WhoAmICommand::execute() {
+    bool is_background = _isBackgroundComamnd(m_cmd_line);
+    char clean_cmd[COMMAND_MAX_LENGTH];
+    strcpy(clean_cmd, m_cmd_line);
+    if (is_background) {
+        _removeBackgroundSign(clean_cmd);
+    }
+    pid_t pid = fork();
+    if (pid < 0) {
+        perror("smash error: fork failed");
+        return;
+    }
+    if (pid == 0) {
+        if (setpgrp() == -1) {
+            perror("smash error: setpgrp failed");
+            exit(1);
+        }
+        uid_t my_uid = geteuid();
+        string uid_str = to_string(my_uid);
+        int fd = open("/etc/passwd", O_RDONLY);
+        if (fd < 0) {
+            perror("smash error: open failed");
+            exit(1);
+        }
+        const int BUFFER_SIZE = 1024;
+        char buffer[BUFFER_SIZE];
+        ssize_t bytes_read;
+        string current_line = "";
+        bool found = false;
+        while ((bytes_read = read(fd, buffer, BUFFER_SIZE)) > 0) {
+            for (ssize_t i = 0; i < bytes_read; ++i) {
+                if (buffer[i] == '\n') {
+                    vector<string> tokens;
+                    size_t start = 0;
+                    size_t end = current_line.find(':');
+                    while (end != string::npos) {
+                        tokens.push_back(current_line.substr(start, end - start));
+                        start = end + 1;
+                        end = current_line.find(':', start);
+                    }
+                    tokens.push_back(current_line.substr(start));
+                    if (tokens.size() >= 6 && tokens[2] == uid_str) {
+                        cout << tokens[0] << endl; // Username
+                        cout << tokens[2] << endl; // UID
+                        cout << tokens[3] << endl; // GID
+                        cout << tokens[5] << endl; // Home directory
+                        found = true;
+                        break;
+                    }
+                    current_line = "";
+                } else {
+                    current_line += buffer[i];
+                }
+            }
+            if (found) break;
+        }
+        if (bytes_read < 0) {
+            perror("smash error: read failed");
+        }
+        if (!found && !current_line.empty()) {
+            vector<string> tokens;
+            size_t start = 0;
+            size_t end = current_line.find(':');
+
+            while (end != string::npos) {
+                tokens.push_back(current_line.substr(start, end - start));
+                start = end + 1;
+                end = current_line.find(':', start);
+            }
+            tokens.push_back(current_line.substr(start));
+
+            if (tokens.size() >= 6 && tokens[2] == uid_str) {
+                cout << tokens[0] << endl;
+                cout << tokens[2] << endl;
+                cout << tokens[3] << endl;
+                cout << tokens[5] << endl;
+                found = true;
+            }
+        }
+        close(fd);
+        exit(0);
+    } else {
+        if (is_background) {
+            m_shell->getJobsList()->addJob(this, pid, false);
+        } else {
+            m_shell->setFgPid(pid);
+            if (waitpid(pid, nullptr, 0) == -1) {
+                perror("smash error: waitpid failed");
+            }
+            m_shell->setFgPid(0);
+        }
+    }
+}
 
 
 
@@ -594,7 +927,9 @@ bool SysInfoCommand::getBootTime(time_t& boot_time) {
 SmallShell::SmallShell() : m_prompt("smash") {}
 
 SmallShell::~SmallShell() {
-    // TODO: add your implementation
+    if (m_lastPwd != nullptr) {
+        free(m_lastPwd);
+    }
 }
 
 /**
@@ -607,8 +942,18 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     char clean_cmd[COMMAND_MAX_LENGTH];
     strcpy(clean_cmd, cmd_line);
     _removeBackgroundSign(clean_cmd); //handle the case of BuiltInCommand&
-
-    if (firstWord.compare("chprompt") == 0) {
+    string clean_cmd_s(clean_cmd);
+    if (clean_cmd_s.find(">") != string::npos) {
+        return new RedirectionCommand(clean_cmd, this);
+    } else if (clean_cmd_s.find("|") != string::npos) {
+        return new PipeCommand(clean_cmd, this);
+    } else if (firstWord.compare("du") == 0) {
+        return new PipeCommand(cmd_line, this);
+    }
+    else if (firstWord.compare("whoami") == 0) {
+        return new WhoAmICommand(cmd_line, this);
+    }
+    else if (firstWord.compare("chprompt") == 0) {
       return new ChangePromptCommand(clean_cmd, this);
     }
     else if (firstWord.compare("showpid") == 0) {
@@ -664,6 +1009,7 @@ void SmallShell::executeCommand(const char *cmd_line) {
     // for example:
     Command* cmd = CreateCommand(cmd_line);
     cmd->execute();
+    delete cmd;
     // Please note that you must fork smash process for some commands (e.g., external commands....)
 }
 
