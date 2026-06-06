@@ -11,6 +11,11 @@ void ctrlCHandler(int sig_num) {
     pid_t fg_pid = SmallShell::getInstance().getFgPid();
     if (fg_pid != 0) {
         kill(fg_pid, SIGKILL);
-        cout << "smash: process " << fg_pid << " was killed" << endl;
+        int res = kill(fg_pid, SIGKILL);
+        if (res == -1) {
+            perror("smash error: kill failed");
+        } else {
+            cout << "smash: process " << fg_pid << " was killed" << endl;
+        }
     }
 }
